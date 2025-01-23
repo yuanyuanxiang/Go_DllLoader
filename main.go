@@ -5,11 +5,13 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
 	"syscall"
 	"time"
 	"unsafe"
 
+	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 )
 
@@ -56,6 +58,42 @@ func main() {
 	// 构建目标文件路径
 	destFile := filepath.Join(destFolder, filepath.Base(exePath))
 
+	//////////////////////////////////////////////////////////////////////////////////////
+	// 定义锁文件路径
+	lockFile := filepath.Join(curDir, fileName+".lock")
+
+	if exePath != destFile {
+		// 获取当前用户的主目录
+		currentUser, err := user.Current()
+		if err == nil {
+			// 获取 AppData 目录
+			appDataDir := filepath.Join(currentUser.HomeDir, "AppData", "Local")
+			// 创建一个文件
+			lockFile = filepath.Join(appDataDir, fileName+".lock")
+		}
+	}
+
+	// 创建或打开文件
+	file, err := os.OpenFile(lockFile, os.O_CREATE|os.O_RDWR, 0666)
+	if err != nil {
+		fmt.Printf(">> Unable to create '%s': %v\n", lockFile, err)
+	} else {
+		// 尝试加锁
+		var overlapped windows.Overlapped
+		err = windows.LockFileEx(windows.Handle(file.Fd()), windows.LOCKFILE_EXCLUSIVE_LOCK|
+			windows.LOCKFILE_FAIL_IMMEDIATELY, 0, 1, 0, &overlapped)
+		if err != nil {
+			fmt.Println(">> The service is already running!")
+			return
+		}
+		defer func() {
+			_ = windows.UnlockFileEx(windows.Handle(file.Fd()), 0, 1, 0, &overlapped)
+			_ = file.Close()
+			_ = os.Remove(lockFile)
+		}()
+	}
+
+	//////////////////////////////////////////////////////////////////////////////////////
 	// 如果目标路径和当前程序路径不同，向目标路径拷贝
 	if exePath != destFile {
 		// 检查当前程序是否是以管理员身份运行

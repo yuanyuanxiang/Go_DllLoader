@@ -9,3 +9,9 @@ Function `EasyRun` has different results. Return 1 meaning exit, and the program
 In this case `KernelService.dll` has downloaded a new version named `KernelService.new`. So the program will load new library!
 
 I develop this program for another project [SimpleRemoter](https://github.com/yuanyuanxiang/SimpleRemoter) .  
+
+## Changelog
+
+[2025/01/23]
+
+Allow running only one program at the same time. However this change causes Windows Defender report virus!
